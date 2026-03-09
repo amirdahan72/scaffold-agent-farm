@@ -26,6 +26,7 @@ scaffold-agent-farm/
 │       ├── make-skill-template/SKILL.md   ← scaffolds new skills
 │       ├── web-search/SKILL.md            ← fetches & summarizes web pages
 │       ├── workiq-context/SKILL.md        ← queries Work IQ for M365 context
+│       ├── sharepoint-reader/SKILL.md      ← downloads SharePoint/OneDrive files into farm resources
 │       ├── ppt-creator/SKILL.md           ← generates slide decks
 │       ├── doc-writer/SKILL.md            ← writes structured markdown docs
 │       └── docx-writer/SKILL.md           ← creates Word (.docx) documents
@@ -92,6 +93,7 @@ Each subagent writes to disk. The next subagent reads from disk. This keeps cont
 |-------|-------------|-------------------|
 | **web-search** | Searches the web and returns concise summaries | Researching competitors, pricing, features, market trends |
 | **workiq-context** | Queries Work IQ CLI for internal M365 context | Gathering internal discussions, decisions, stakeholder feedback |
+| **sharepoint-reader** | Downloads SharePoint/OneDrive files from URLs into local farm resource folders | Ingesting PM-provided SharePoint links (including large files) for collector/synthesizer phases |
 | **ppt-creator** | Creates `.pptx` slide decks from structured content | Producing presentation deliverables |
 | **doc-writer** | Writes structured markdown (PRDs, specs, briefs) | Producing document deliverables |
 | **docx-writer** | Creates Microsoft Word (.docx) documents | Exporting deliverables as formatted Word docs |

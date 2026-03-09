@@ -38,7 +38,7 @@ Sub-agents communicate via **disk files** — each writes to a known path, the n
 
 | Phase / Role | What it does |
 |------|-------------|
-| **Phase 0 — Resource Loading** | **Orchestrator pauses and asks the PM to add reference files (markdown, SharePoint links) to `work/resources/`, then waits for approval before proceeding.** |
+| **Phase 0 — Resource Loading** | **Orchestrator pauses and asks the PM to add reference files (markdown, SharePoint/OneDrive links) to `work/resources/`, then waits for approval before proceeding.** |
 | **Collector(s)** | Gathers raw information (web search, Work IQ, Azure resources) and writes summaries to disk — reads PM resources first. Each collector is a separate sub-agent. |
 | **Synthesizer** | Reads all summaries, combines them into a structured document |
 | **Skeptic** | Pure adversarial review — finds unsupported claims, bias, gaps, outdated data. Writes critique to `review-notes.md`. Does **NOT** fix anything. |
@@ -87,6 +87,7 @@ Generated agent farms can reference these shared skills (already in `.github/ski
 |-------|----------------|
 | `web-search` | Agent needs to research public web sources |
 | `workiq-context` | Agent needs internal Microsoft 365 context (emails, meetings, chats) |
+| `sharepoint-reader` | PM provides SharePoint or OneDrive links that must be downloaded into farm-local resources |
 | `ado-reader` | Agent needs Azure DevOps work items, sprint backlogs, or iteration status (read-only) |
 | `ppt-creator` | Agent needs to produce slide decks |
 | `doc-writer` | Agent needs to produce structured markdown documents (PRDs, specs, briefs) |
@@ -118,6 +119,10 @@ Example queries:
 
 Work IQ output is **internal context** — never present it as public fact.
 
+## Isolation Rule
+
+**When scaffolding a new farm, do NOT read, search, or reference any files under `farms/`.** Generate entirely from this skill's instructions and the PM's inputs. Existing farms are outputs of previous runs — they must not influence new scaffolds.
+
 ## Workflow: Scaffolding an Agent Farm
 
 ### Step 1 — Understand the user's goal
@@ -128,7 +133,7 @@ Ask or infer:
 3. **What sources are needed?** (web research? internal context? Azure resources?)
 4. **Does the PM have reference resources?**
    - **Markdown files** — `.md` files containing existing research, specs, notes, or requirements. Copy them into `work/resources/`.
-   - **SharePoint links** — URLs to internal SharePoint folders, pages, or documents. Store them in `work/resources/sharepoint-links.md` so the Collector can fetch and summarize them at runtime.
+    - **SharePoint/OneDrive links** — URLs to internal SharePoint or OneDrive folders, pages, or documents. Store them in `work/resources/sharepoint-links.md` so the Collector can fetch and summarize them at runtime.
    - These are treated as **primary context** — collectors should read them before doing external research.
 5. **Who is the audience?** (engineering, leadership, PM peers, customers?)
 
@@ -170,7 +175,7 @@ farms/<farm-name>/
 ├── work/
 │   ├── resources/                   # PM-provided reference material (shared across runs)
 │   │   ├── *.md                     # Markdown resource files (copied from PM)
-│   │   └── sharepoint-links.md      # Curated list of SharePoint URLs
+│   │   └── sharepoint-links.md      # Curated list of SharePoint/OneDrive URLs
 │   └── runs/                        # Each run gets its own subfolder
 │       └── <run-slug>/              # e.g., 2026-03-02-ai-code-tools
 │           ├── sources/             # Collector outputs for this run
@@ -181,7 +186,7 @@ farms/<farm-name>/
 ```
 
 > If the PM provides markdown files, copy them into `work/resources/`.
-> If the PM provides SharePoint links, create `work/resources/sharepoint-links.md` with the URLs (one per line, with optional descriptions).
+> If the PM provides SharePoint/OneDrive links, create `work/resources/sharepoint-links.md` with the URLs (one per line, with optional descriptions).
 
 ### Step 4 — Generate the orchestrator + prompt templates
 
@@ -291,7 +296,7 @@ At the start of every run, before Phase 0:
 > ⚠️ MANDATORY — The orchestrator does NOT proceed to collectors until the PM explicitly approves.
 
 Before dispatching any collector sub-agent:
-1. Prompt the PM: "Do you have reference files or SharePoint links to add to work/resources/?"
+1. Prompt the PM: "Do you have reference files or SharePoint/OneDrive links to add to work/resources/?"
 2. If the PM provides files: save them. If not: acknowledge and proceed.
 3. Ask for explicit approval: "Resources are loaded (or skipped). Ready to start?"
 4. Wait for PM confirmation.
@@ -305,7 +310,9 @@ For each sub-agent in the dispatch sequence:
 - Each collector is a separate `runSubagent` call (sequential, not parallel between sub-agents)
 - However, each collector fires its own queries in a **single parallel batch** internally
 - Collectors read `work/resources/` first for PM-provided context
-- If `work/resources/sharepoint-links.md` exists, the web researcher fetches and summarizes those URLs
+- If any file in `work/resources/` is not `.md` (e.g., `.docx`, `.pdf`, `.pptx`, `.xlsx`), convert it with `markitdown "<file>" -o "<file>.md"` before summarizing. Install with `pip install 'markitdown[all]'` if not available.
+- If `work/resources/sharepoint-links.md` exists, the collector must invoke the `sharepoint-reader` skill first to download each link into farm-local paths (for example `work/resources/` or `work/runs/<slug>/sources/`)
+- After download, summarize the local files into source notes; do not rely on direct webpage fetching for SharePoint or OneDrive file URLs
 - PM-provided resources are **primary context** — prefer them over external search on the same topic
 - After all collectors complete, report collected sources to the PM
 
@@ -358,10 +365,12 @@ After generating a farm, verify:
 - [ ] Disk persistence paths are defined (where each sub-agent writes)
 - [ ] `work/resources/` folder exists (even if empty) for PM-provided material
 - [ ] If PM provided markdown files, they are copied to `work/resources/`
-- [ ] If PM provided SharePoint links, they are listed in `work/resources/sharepoint-links.md`
+- [ ] If PM provided SharePoint/OneDrive links, they are listed in `work/resources/sharepoint-links.md`
+- [ ] If `work/resources/sharepoint-links.md` exists, collector instructions explicitly invoke `sharepoint-reader` before synthesis
 - [ ] **Phase 0 resource-loading gate is included** — orchestrator asks PM to add resources and waits for approval before dispatching collectors
 - [ ] **Run versioning is included** — orchestrator creates `work/runs/YYYY-MM-DD-<slug>/` at the start; previous runs are preserved
 - [ ] Collector instructions include reading `work/resources/` before external research
+- [ ] Collector instructions include converting non-Markdown resource files with `markitdown` before summarizing
 - [ ] Each collector fires its queries as a parallel batch of tool calls internally
 - [ ] Collector outputs go to `work/runs/<slug>/sources/`
 - [ ] Work IQ outputs go to `work/runs/<slug>/internal-context.md`
