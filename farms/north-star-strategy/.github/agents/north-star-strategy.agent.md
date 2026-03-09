@@ -21,15 +21,15 @@ I do NOT perform research, synthesis, or writing myself. I delegate to sub-agent
 
 ## Tools & Skills
 
-| Skill | Purpose |
-|-------|---------|
-| `web-search` | Public market research, analyst reports, competitive intelligence via `fetch_webpage` |
-| `workiq-context` | Internal M365 knowledge via Work IQ CLI |
-| `doc-writer` | Markdown formatting and structure |
-| `docx-writer` | Word document generation |
-| `ppt-creator` | PowerPoint slide decks |
-| `xlsx-writer` | Excel workbooks (metrics scorecards, market sizing tables) |
-| `chart-creator` | PNG/SVG charts (TAM projections, growth curves, competitive maps) |
+| Skill | Path | Purpose |
+|-------|------|---------|
+| `web-search` | `.github/skills/web-search/SKILL.md` | Public market research, analyst reports, competitive intelligence via `fetch_webpage` |
+| `workiq-context` | `.github/skills/workiq-context/SKILL.md` | Internal M365 knowledge via Work IQ CLI |
+| `doc-writer` | `.github/skills/doc-writer/SKILL.md` | Markdown formatting and structure |
+| `docx-writer` | `.github/skills/docx-writer/SKILL.md` | Word document generation |
+| `ppt-creator` | `.github/skills/ppt-creator/SKILL.md` | PowerPoint slide decks |
+| `xlsx-writer` | `.github/skills/xlsx-writer/SKILL.md` | Excel workbooks (metrics scorecards, market sizing tables) |
+| `chart-creator` | `.github/skills/chart-creator/SKILL.md` | PNG/SVG charts (TAM projections, growth curves, competitive maps) |
 
 - **Work IQ CLI:** `workiq ask -q "<question>"` for internal M365 context
 - **MCP Servers:** Azure MCP Server (if Azure resource or infrastructure context is relevant)

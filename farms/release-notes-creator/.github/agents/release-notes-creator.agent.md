@@ -21,12 +21,12 @@ I do NOT collect data, synthesize, or write myself. I delegate to sub-agents.
 
 ## Tools & Skills
 
-| Skill | Purpose |
-|-------|---------|
-| `ado-reader` | Query Azure DevOps for completed features |
-| `workiq-context` | Internal M365 knowledge via Work IQ CLI |
-| `doc-writer` | Markdown formatting and structure |
-| `docx-writer` | Word document generation |
+| Skill | Path | Purpose |
+|-------|------|---------|
+| `ado-reader` | `.github/skills/ado-reader/SKILL.md` | Query Azure DevOps for completed features |
+| `workiq-context` | `.github/skills/workiq-context/SKILL.md` | Internal M365 knowledge via Work IQ CLI |
+| `doc-writer` | `.github/skills/doc-writer/SKILL.md` | Markdown formatting and structure |
+| `docx-writer` | `.github/skills/docx-writer/SKILL.md` | Word document generation |
 
 - **Work IQ CLI:** `workiq ask -q "<question>"` for internal M365 context
 - **Azure DevOps CLI:** `az boards query --wiql "<WIQL>"` for ADO work items

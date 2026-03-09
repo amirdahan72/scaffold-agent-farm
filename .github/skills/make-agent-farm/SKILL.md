@@ -239,7 +239,7 @@ Fire ALL queries below in a SINGLE parallel batch:
 The orchestrator should be a **slim file (~100-130 lines)** that:
 
 1. Describes the farm's goal and rules
-2. Lists tools, skills, and MCP servers
+2. Lists tools, skills, and MCP servers — **always reference skills by explicit path** (e.g., `.github/skills/web-search/SKILL.md`), not by short name alone. Use a three-column table: `| Skill | Path | Purpose |`
 3. Defines **Step 1: Gather PM Inputs** — questions to ask the PM
 4. Defines **Step 2: Phase 0 Resource Gate** — pause for PM resources
 5. Defines **Step 3: Run Setup** — create `work/runs/YYYY-MM-DD-<slug>/`
@@ -360,6 +360,7 @@ After generating a farm, verify:
 - [ ] Every sub-agent has a corresponding prompt template in `prompts/*.prompt.md`
 - [ ] Prompt templates have `{{PARAMETER}}` markers matching the orchestrator's parameter table
 - [ ] All referenced skills exist in `.github/skills/`
+- [ ] Skills are referenced by explicit path (`.github/skills/<name>/SKILL.md`) in the orchestrator's skill table, not by short name alone
 - [ ] Sub-agents have clear, non-overlapping responsibilities
 - [ ] **Skeptic and Reviser are separate sub-agents** (Skeptic writes critique, Reviser fixes)
 - [ ] Disk persistence paths are defined (where each sub-agent writes)
