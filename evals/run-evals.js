@@ -173,19 +173,12 @@ function run() {
   if (exists("README.md")) {
     const readme = readText("README.md");
 
-    const mustMentionSkills = [
-      "ado-reader",
-      "chart-creator",
-      "xlsx-writer",
-      "send-email",
-      "sharepoint-reader",
-    ];
-
-    mustMentionSkills.forEach((skill) => {
+    // Inventory-driven: every required skill must appear in README
+    requiredSkills.forEach((skill) => {
       if (readme.includes(`**${skill}**`) || readme.includes(skill)) {
         report("PASS", "README coverage", `${skill} referenced`);
       } else {
-        report("FAIL", "README coverage", `${skill} not referenced`);
+        report("FAIL", "README coverage", `${skill} not referenced in README`);
       }
     });
 
@@ -202,7 +195,94 @@ function run() {
     }
   }
 
-  // 6) .gitignore checks
+  // 6) Agent.md cross-reference checks
+  const agentPath = ".github/agents/scaffold-agent-farm.agent.md";
+  if (exists(agentPath)) {
+    const agentText = readText(agentPath);
+    // Extract skill names only from the "Available Shared Skills" table section
+    const skillsSection = agentText.match(/## Available Shared Skills[\s\S]*?(?=\n## |$)/)?.[0] || "";
+    const skillTableRe = /\|\s*\*\*([a-z0-9-]+)\*\*\s*\|/g;
+    let match;
+    const agentSkills = [];
+    while ((match = skillTableRe.exec(skillsSection)) !== null) {
+      agentSkills.push(match[1]);
+    }
+    // Every skill listed in agent.md must exist on disk
+    agentSkills.forEach((skill) => {
+      const onDisk = exists(`.github/skills/${skill}/SKILL.md`);
+      if (onDisk) {
+        report("PASS", "Agent cross-ref", `${skill} listed in agent.md exists on disk`);
+      } else {
+        report("FAIL", "Agent cross-ref", `${skill} listed in agent.md but .github/skills/${skill}/SKILL.md missing`);
+      }
+    });
+    // Every required skill must appear in the agent.md table
+    requiredSkills.forEach((skill) => {
+      if (agentSkills.includes(skill)) {
+        report("PASS", "Agent cross-ref", `${skill} present in agent.md skill table`);
+      } else {
+        report("FAIL", "Agent cross-ref", `${skill} missing from agent.md skill table`);
+      }
+    });
+  }
+
+  // 7) Skill cross-reference dependency checks
+  if (exists(".github/skills")) {
+    const skills = listDirs(".github/skills");
+    const skillRefRe = /\.github\/skills\/([a-z0-9-]+)\/SKILL\.md/g;
+    skills.forEach((skill) => {
+      const skillPath = `.github/skills/${skill}/SKILL.md`;
+      if (!exists(skillPath)) return;
+      const txt = readText(skillPath);
+      let ref;
+      const seen = new Set();
+      while ((ref = skillRefRe.exec(txt)) !== null) {
+        const target = ref[1];
+        if (target === skill || seen.has(target)) continue; // skip self-refs and dupes
+        seen.add(target);
+        if (exists(`.github/skills/${target}/SKILL.md`)) {
+          report("PASS", "Skill cross-ref", `${skill} → ${target} exists`);
+        } else {
+          report("FAIL", "Skill cross-ref", `${skill} references ${target} but .github/skills/${target}/SKILL.md missing`);
+        }
+      }
+      skillRefRe.lastIndex = 0; // reset regex for next skill
+    });
+  }
+
+  // 8) Semantic lint — ppt-creator hard invariants
+  const pptSkillPath = ".github/skills/ppt-creator/SKILL.md";
+  if (exists(pptSkillPath)) {
+    const pptText = readText(pptSkillPath);
+    // Invariant: must forbid addShape()
+    if (/addShape/i.test(pptText) && /never.*addShape|no.*addShape|forbidden/i.test(pptText)) {
+      report("PASS", "Semantic lint", "ppt-creator forbids addShape()");
+    } else {
+      report("FAIL", "Semantic lint", "ppt-creator does not clearly forbid addShape()");
+    }
+    // Invariant: must not contain slide.slideNumber in code templates
+    // Extract only javascript/bash/js code fences (skip the outer ```skill wrapper)
+    const codeBlocks = [];
+    const codeBlockRe = /```(?:javascript|js|bash)\r?\n([\s\S]*?)```/g;
+    let cbMatch;
+    while ((cbMatch = codeBlockRe.exec(pptText)) !== null) {
+      codeBlocks.push(cbMatch[1]);
+    }
+    const codeContent = codeBlocks.join("\n");
+    if (/\.slideNumber\s*=/.test(codeContent)) {
+      report("FAIL", "Semantic lint", "ppt-creator code templates still use .slideNumber (blocks Designer)");
+    } else {
+      report("PASS", "Semantic lint", "ppt-creator code templates free of .slideNumber");
+    }
+    // Invariant: no Aptos font in code templates
+    if (/Aptos/i.test(codeContent)) {
+      report("FAIL", "Semantic lint", "ppt-creator code templates use Aptos font (should be Segoe UI only)");
+    } else {
+      report("PASS", "Semantic lint", "ppt-creator code templates use Segoe UI consistently");
+    }
+  }
+
+  // 9) .gitignore checks
   if (exists(".gitignore")) {
     const gi = readText(".gitignore");
     ["node_modules/", "farms/", "work/"]
