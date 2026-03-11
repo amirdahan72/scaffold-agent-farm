@@ -66,7 +66,7 @@ Allowed alternatives:
 |---------|------|-----------|-------|
 | Title slide — title | Segoe UI Semibold | 36 | `#FFFFFF` (on dark fill) or `#000000` (on white) |
 | Title slide — subtitle | Segoe UI | 18 | `#000000` or `#747474` |
-| Title slide — event/context | Aptos Display | 20 | `#747474` |
+| Title slide — event/context | Segoe UI | 20 | `#747474` |
 | Summary heading | Segoe UI Semibold | 28 | `#0070C0` |
 | Content heading | Segoe UI Semibold | 36 | `#000000` |
 | Body text | Segoe UI | 14 | `#000000` |
@@ -85,21 +85,19 @@ Allowed alternatives:
 - White background
 - Title: left-aligned, Segoe UI Semibold 36pt, white on dark text-box fill (`#222120`) — or black on white
 - Subtitle: left-aligned, Segoe UI 18pt, `#000000`
-- Context/event line: Aptos Display 20pt, `#747474`
-- Date/author: left-aligned, Aptos 18pt, `#000000`
+- Context/event line: Segoe UI 20pt, `#747474`
+- Date/author: left-aligned, Segoe UI 18pt, `#000000`
 
 **Layout 2 — Summary / Key Message**
 - White background
 - Heading: Segoe UI Semibold 28pt, `#0070C0`, left-aligned
 - Body: below heading, Segoe UI 14pt bullets, `#000000`
-- Optional stat callouts: Segoe UI Semibold 36pt, `#F65567` (number) + Segoe UI 12pt label below
-- Slide number: bottom-right, Segoe UI 9pt, `#747474`
+- Optional stat callouts: Segoe UI Semibold 36pt, `#F65567` (number) + Segoe UI 12pt label — **combined in one text box** (two text runs)
 
 **Layout 3 — Content Slide (default)**
 - White background
 - Heading: Segoe UI Semibold 36pt, `#000000`, left-aligned
 - Body area: Segoe UI 14pt bullets, `#000000`
-- Slide number: bottom-right, Segoe UI 9pt, `#747474`
 
 **Layout 4 — Two-Column Content**
 - Same heading as Layout 3
@@ -196,7 +194,7 @@ titleSlide.addText("<Subtitle / key message>", {
 });
 titleSlide.addText("<Date>  |  <Author>", {
   x: 0.5, y: 5.2, w: 6.0, h: 0.5,
-  fontSize: 18, fontFace: "Aptos", color: BLACK, align: "left"
+  fontSize: 18, fontFace: FONT, color: BLACK, align: "left"
 });
 
 // ── Summary Slide (Layout 2) ──
@@ -211,16 +209,11 @@ summarySlide.addText([
   { text: "Key finding 2", options: { bullet: true, fontSize: 14, fontFace: FONT, color: BLACK } },
   { text: "Key finding 3", options: { bullet: true, fontSize: 14, fontFace: FONT, color: BLACK } }
 ], { x: 0.5, y: 1.5, w: 7.0, h: 5.0, valign: "top" });
-// Optional stat callouts (text only — no shapes)
-summarySlide.addText("42%", {
-  x: 8.5, y: 1.5, w: 3.0, h: 0.6,
-  fontSize: 36, fontFace: FONT_SB, color: CORAL, align: "left"
-});
-summarySlide.addText("Market share growth", {
-  x: 8.5, y: 2.1, w: 3.0, h: 0.4,
-  fontSize: 12, fontFace: FONT, color: BLACK, align: "left"
-});
-summarySlide.slideNumber = { x: 12.5, y: 7.0, fontSize: 9, fontFace: FONT, color: MEDIUM_GRAY };
+// Optional stat callouts (text only — no shapes, one text box per callout)
+summarySlide.addText([
+  { text: "42%\n", options: { fontSize: 36, fontFace: FONT_SB, color: CORAL } },
+  { text: "Market share growth", options: { fontSize: 12, fontFace: FONT, color: BLACK } }
+], { x: 8.5, y: 1.5, w: 3.0, h: 1.0, align: "left", valign: "top" });
 
 // ── Content Slide (Layout 3) ──
 const contentSlide = pres.addSlide();
@@ -234,7 +227,7 @@ contentSlide.addText([
   { text: "Evidence point 2", options: { bullet: true, fontSize: 14, fontFace: FONT, color: BLACK } },
   { text: "Evidence point 3", options: { bullet: true, fontSize: 14, fontFace: FONT, color: BLACK } }
 ], { x: 0.6, y: 1.2, w: 12.0, h: 5.5, valign: "top" });
-contentSlide.slideNumber = { x: 12.5, y: 7.0, fontSize: 9, fontFace: FONT, color: MEDIUM_GRAY };
+
 
 // ── Table Slide (Layout 5) ──
 const tableSlide = pres.addSlide();
@@ -306,8 +299,9 @@ Before delivering, verify:
 - [ ] **Brand compliance:** Heading Blue (`#0070C0`) for summary headings; black for content headings
 - [ ] **Typography:** Segoe UI family used throughout (Semibold for headings, Regular for body)
 - [ ] **Tables:** Header row uses Navy Dark (`#0E2841`) fill; body rows alternate white and `#E8E8E8`
-- [ ] **Stat callouts:** Coral (`#F65567`) for numbers, placed as text boxes (no shapes)
+- [ ] **Stat callouts:** Coral (`#F65567`) for numbers — each callout is **one text box** with two text runs (no shapes, no separate boxes)
 - [ ] **Widescreen:** Presentation uses `LAYOUT_WIDE` (13.33" × 7.5")
+- [ ] **No `slideNumber`:** Do not set `slide.slideNumber` — it creates an extra text placeholder that blocks Designer. Use PowerPoint's built-in **Insert → Header & Footer → Slide Number** after opening.
 - [ ] **Design Suggestions ready:** Open the .pptx in PowerPoint → click Design → Design Ideas should activate
 
 ## Rules
@@ -320,8 +314,10 @@ Before delivering, verify:
 - **Keep slides lean.** 5–6 bullets max per slide. If more, split into two slides.
 - **Install packages first.** Always run `npm install pptxgenjs` before generating.
 - **Widescreen only.** Always use `LAYOUT_WIDE`.
+- **One font family.** Use Segoe UI (Regular + Semibold) for everything. Do not mix Aptos or other typefaces.
 - **Font fallback.** If Segoe UI is unavailable on the system, use `Calibri` → `Arial`.
-- **Stat callouts are text only.** Use bold colored `addText()` for large numbers — never shapes.
+- **Stat callouts are text only.** Use bold colored `addText()` for large numbers — never shapes. Combine number + label in **one text box** (array of text runs) to keep the object count low for Designer.
+- **No `slideNumber` property.** Do not set `slide.slideNumber` — it adds an extra text placeholder that blocks Design Suggestions. Let users enable slide numbers natively via Insert → Header & Footer.
 
 ## Output
 
