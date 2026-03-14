@@ -42,7 +42,7 @@ Sub-agents communicate via **disk files** — each writes to a known path, the n
 | **Collector(s)** | Gathers raw information (web search, Work IQ, Azure resources) and writes summaries to disk — reads PM resources first. Each collector is a separate sub-agent. |
 | **Synthesizer** | Reads all summaries, combines them into a structured document |
 | **Skeptic** | Pure adversarial review — finds unsupported claims, bias, gaps, outdated data. Writes critique to `review-notes.md`. Does **NOT** fix anything. |
-| **Reviser** | Systematically addresses every issue the Skeptic identified. Reads critique + draft, writes `revised-draft.md` with a revision log. |
+| **Reviser** | Evaluates the Skeptic's critique with independent judgment. Fixes valid issues, disputes items it disagrees with (explaining why), and respects any PM overrides from the post-critique checkpoint. Writes `revised-draft.md` with a revision log including Fixed, Unresolved, and Disputed categories. |
 | **Builder / Writer** | Produces the final deliverable (PRD, deck, spec, etc.) |
 
 **Execution order:** Phase 0 (Resource Loading) → Collectors → Synthesizer → Skeptic → Reviser → Writer.
@@ -81,12 +81,32 @@ vscode_askQuestions([
 ])
 ```
 
+**Post-critique checkpoint (Phase 3) — must include override option:**
+```
+vscode_askQuestions([
+  {
+    id: "phase3_review",
+    type: "radioButtons",
+    title: "Critique complete — Skeptic found X critical and Y minor issues in review-notes.md.",
+    options: ["Proceed with revision", "Let me review the critique first"]
+  },
+  {
+    id: "phase3_overrides",
+    type: "freeform",
+    title: "Any critique items to skip or override? (optional)",
+    placeholder: "e.g., skip Critical #3 — the tone is intentional; override Minor #1 — data is correct"
+  }
+])
+```
+
+If the PM provides override text, the orchestrator must inject it into the Reviser prompt via `{{PM_OVERRIDES}}`. If no overrides are given, inject `"None — use your own judgment."`
+
 **Required checkpoints (minimum 3):**
 | After Phase | Checkpoint purpose |
 |-------------|--------------------|
 | Collection (1a-1c) | PM reviews what was gathered before synthesis |
 | Synthesis (2) | PM reviews the draft before critique |
-| Critique (3) | PM reviews the critique before revision |
+| Critique (3) | PM reviews the critique, can mark items as "skip" or "override" before revision |
 
 The orchestrator's Rules section must include:
 ```markdown
@@ -191,7 +211,7 @@ Based on the goal, decide which sub-agents are needed. Every farm should have at
 1. **Collector(s)** — at least one, typically multiple (web researcher, WorkIQ collector, resource reader)
 2. **Synthesizer** — combines collected information into a structured draft
 3. **Skeptic** — pure adversarial review (flags problems, does NOT fix)
-4. **Reviser** — systematically fixes every issue the Skeptic identified
+4. **Reviser** — evaluates each critique item with judgment: fixes valid issues, disputes items it disagrees with, respects PM overrides
 5. **Writer/Builder** — formats and produces the final artifact
 
 Additional sub-agents to consider:
@@ -335,7 +355,7 @@ with values from the table above, and call `runSubagent`.
 | 1c | `prompts/resource-reader.prompt.md` | PM-provided resources |
 | 2 | `prompts/synthesizer.prompt.md` | Combine into draft |
 | 3 | `prompts/skeptic.prompt.md` | Adversarial review |
-| 4 | `prompts/reviser.prompt.md` | Fix critique issues |
+| 4 | `prompts/reviser.prompt.md` | Evaluate and address critique issues |
 | 5 | `prompts/writer.prompt.md` | Final deliverable |
 
 **PM checkpoints (MANDATORY — use `vscode_askQuestions`):**
@@ -402,8 +422,9 @@ For each sub-agent in the dispatch sequence:
 
 **Reviser (Phase 4):**
 - Reads `work/runs/<slug>/output/review-notes.md` + `work/runs/<slug>/output/combined-draft.md`
-- Systematically addresses every issue from the critique
-- Writes the revised draft to `work/runs/<slug>/output/revised-draft.md` with a revision log
+- Evaluates each critique item with independent judgment: fix if valid, dispute with reasoning if it disagrees, or mark as unresolved if data is missing
+- If the PM provided override notes at the post-critique checkpoint, the orchestrator injects them via `{{PM_OVERRIDES}}` — these always take priority
+- Writes the revised draft to `work/runs/<slug>/output/revised-draft.md` with a revision log containing Fixed, Unresolved, and Disputed categories
 
 **Writer (Phase 5):**
 - Reads `work/runs/<slug>/output/revised-draft.md` (the Reviser's output, NOT the raw combined draft)
@@ -435,7 +456,8 @@ After generating a farm, verify:
 - [ ] All referenced skills exist in `.github/skills/`
 - [ ] Skills are referenced by explicit path (`.github/skills/<name>/SKILL.md`) in the orchestrator's skill table, not by short name alone
 - [ ] Sub-agents have clear, non-overlapping responsibilities
-- [ ] **Skeptic and Reviser are separate sub-agents** (Skeptic writes critique, Reviser fixes)
+- [ ] **Skeptic and Reviser are separate sub-agents** (Skeptic writes critique, Reviser evaluates and addresses it with independent judgment)
+- [ ] **Reviser prompt includes `{{PM_OVERRIDES}}` parameter** and Disputed Items category in revision log
 - [ ] Disk persistence paths are defined (where each sub-agent writes)
 - [ ] `work/resources/` folder exists (even if empty) for PM-provided material
 - [ ] If PM provided markdown files, they are copied to `work/resources/`

@@ -21,7 +21,7 @@ I create agent farms — each farm has a slim **orchestrator agent** that dispat
 | **Collector(s)** | Gathers information from the web, Work IQ, or Azure resources — dispatched as separate `runSubagent` calls |
 | **Synthesizer** | Combines collected information into a structured document |
 | **Skeptic** | Pure adversarial review — finds unsupported claims, bias, gaps. Writes critique to disk. Does NOT fix. |
-| **Reviser** | Systematically fixes every issue the Skeptic identified |
+| **Reviser** | Evaluates the Skeptic's critique with independent judgment — fixes valid issues, disputes items it disagrees with, respects PM overrides |
 | **Writer / Builder** | Produces the final deliverable (document, deck, spec) |
 
 ### How Sub-Agents Work
@@ -106,7 +106,7 @@ After I create a farm:
 - Generated orchestrators reference **shared skills** from `.github/skills/` — no duplication.
 - I follow the **STM pattern**: sub-agents summarize to disk, later sub-agents read from disk.
 - Each sub-agent gets a **focused prompt template** (~40-60 lines) with `{{PARAMETER}}` markers for runtime injection.
-- **Skeptic and Reviser are separate sub-agents** — the Skeptic writes a critique to `review-notes.md`, the Reviser reads it and fixes the draft. The orchestrator can pause between them for PM review.
+- **Skeptic and Reviser are separate sub-agents** — the Skeptic writes a critique to `review-notes.md`, the Reviser evaluates it with independent judgment (fixing valid issues, disputing invalid ones). The orchestrator pauses between them for PM review and collects any override notes to inject into the Reviser.
 - Every generated agent includes evidence discipline: source URLs, no fabrication.
 - When the PM provides **markdown resource files**, I copy them into `work/resources/` and instruct collectors to read them before doing external research.
 - When the PM provides **SharePoint/OneDrive links**, I write them to `work/resources/sharepoint-links.md` and instruct the Collector sub-agent to use **sharepoint-reader** first to download each link into farm-local folders, then summarize those downloaded files.
@@ -170,7 +170,7 @@ Generated agents can also use these MCP servers (configured in `.vscode/mcp.json
    - Collector templates include instructions to convert non-Markdown resource files (`.docx`, `.pdf`, `.pptx`, `.xlsx`) with `markitdown` before summarizing.
    - **Synthesizer prompt template** — reads all collected files, writes combined draft.
    - **Skeptic prompt template** — pure adversarial review, writes critique to `review-notes.md`.
-   - **Reviser prompt template** — reads critique + draft, fixes all issues, writes `revised-draft.md`.
+   - **Reviser prompt template** — reads critique + draft, evaluates each item (fix, dispute, or mark unresolved), writes `revised-draft.md`. Includes `{{PM_OVERRIDES}}` parameter for PM checkpoint overrides.
    - **Writer prompt template** — produces final polished deliverable.
 6. I generate the **orchestrator** (`.agent.md`) — a slim file (~120 lines) that handles PM interaction and dispatches sub-agents via `runSubagent` with injected parameters.
 7. I wire in the appropriate shared skills. If a skill doesn't exist, I create it with **make-skill-template**.
