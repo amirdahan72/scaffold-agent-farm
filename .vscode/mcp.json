@@ -7,6 +7,14 @@
     "microsoft-outlook-mail": {
       "url": "https://agent365.svc.cloud.microsoft/agents/tenants/72f988bf-86f1-41af-91ab-2d7cd011db47/servers/mcp_MailTools",
       "type": "http"
+    },
+    "microsoft-outlook-calendar": {
+      "url": "https://agent365.svc.cloud.microsoft/agents/tenants/72f988bf-86f1-41af-91ab-2d7cd011db47/servers/mcp_CalendarTools",
+      "type": "http"
+    },
+    "microsoft-sharepoint-and-onedrive": {
+      "url": "https://agent365.svc.cloud.microsoft/agents/tenants/72f988bf-86f1-41af-91ab-2d7cd011db47/servers/mcp_ODSPRemoteServer",
+      "type": "http"
     }
   }
 }
