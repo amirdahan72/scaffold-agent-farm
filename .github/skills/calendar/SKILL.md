@@ -104,9 +104,11 @@ This skill uses the **microsoft-outlook-calendar MCP** (Microsoft Graph API) to 
 ## Time & Timezone Handling
 
 - **Always use ISO 8601 format**: `2026-03-09T09:00:00`
-- **Always specify timezone** via the `timeZone` parameter
+- **Always specify timezone** via the `timeZone` parameter or ISO 8601 offset (e.g., `+02:00`, `Z`)
 - Call `GetUserDateAndTimeZoneSettings` if timezone is not known
 - Use the same timezone for both start and end times
+- **API responses return UTC times** — even when `timeZone` is set on the request, raw JSON `start.dateTime` / `end.dateTime` values may be UTC. Always add the user's UTC offset before displaying to the user.
+- **`CreateEvent` defaults to PST** if no timezone offset is provided — always include an offset suffix (e.g., `+02:00`) or `Z`
 
 ## Known Issues
 
@@ -116,6 +118,10 @@ This skill uses the **microsoft-outlook-calendar MCP** (Microsoft Graph API) to 
 | `ListCalendarView` cross-user access failure | You can only view your own calendar. For others, use `FindMeetingTimes`. |
 | Large calendar output exceeds context | Always use `select` to limit fields. Use narrow time windows (1-2 days). |
 | Recurring event instances | Always use `ListCalendarView` (not `ListEvents`) to find specific instances. |
+| `UpdateEvent` silently ignores wrong param names | Use `startDateTime` / `endDateTime`, **NOT** `start` / `end`. Wrong names return success but change nothing. Always verify the response times match your intent. |
+| `DeclineEvent` fails if you're the organizer | Use `CancelEvent` instead. Only non-organizers can decline. |
+| `DeclineEvent` with `sendResponse: false` and `comment` | Cannot include `comment` when `sendResponse` is `false`. Either send the response with comment, or decline silently without one. |
+| UTC offset boundary confusion | When querying by day in a non-UTC timezone (e.g., IST/UTC+2), events near midnight may appear in the wrong day's results. Always convert event times to user's local timezone before classifying which day they belong to. |
 
 ## Rules
 
