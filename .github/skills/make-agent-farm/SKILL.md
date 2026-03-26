@@ -487,4 +487,16 @@ After generating a farm, verify:
 | Sub-agents not finding files | Check disk paths match between writer and reader sub-agents. Ensure `{{RUN_PATH}}` is injected correctly. |
 | runSubagent not working | Sub-agents are dispatched one at a time (blocking). Ensure the orchestrator reads the prompt template and replaces all `{{PARAMETER}}` markers before calling `runSubagent`. |
 
+## Why Flat Orchestration (Not Nested Subagents)
+
+VS Code 1.113 introduced nested subagents (`chat.subagents.allowInvocationsFromSubagents`), which let a subagent invoke other subagents. **Agent farms intentionally do NOT use this pattern.** Here's why:
+
+1. **PM checkpoints require orchestrator control.** Every farm has `vscode_askQuestions` gates after collection, synthesis, and critique. If skeptic nests reviser, the PM loses the override opportunity. Flat dispatch keeps every gate visible.
+2. **Skill injection stays simple.** The orchestrator reads `SKILL.md` files and inlines them into each subagent prompt. Nested subagents would need their own skill-injection logic, complicating prompt templates.
+3. **STM discipline is preserved.** Each subagent gets a clean context window scoped to its task. A nested call inherits the parent's bloated context instead.
+4. **Debugging is transparent.** The orchestrator verifies file outputs after each phase. Nested failures are harder to diagnose — you only see the outer subagent's result.
+5. **No recursion risk.** Flat dispatch prevents unintended loops (e.g., skeptic → web-researcher → resource-reader → …).
+
+**When nesting IS appropriate:** Ad-hoc workflows without human gates, utility subagents (formatting, conversion), or exploratory tasks where the agent decides at runtime what to delegate. These don't describe agent farms.
+
 ```
