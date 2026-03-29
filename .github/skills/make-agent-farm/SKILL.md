@@ -328,6 +328,9 @@ The orchestrator's Rules section must include:
 ```markdown
 - **Skill injection** — before dispatching any sub-agent, read all `.github/skills/*/SKILL.md` files
   referenced in its prompt template and inline their content into the sub-agent prompt
+- **Writing style injection** — before dispatching any sub-agent that produces written content
+  (Synthesizer, Reviser, Writer), read `.github/resources/writing-style-guide.md` and inline it
+  into the sub-agent prompt under a `## Writing Style Guide` section
 ```
 
 The dispatch section should look like:
@@ -431,6 +434,7 @@ For each sub-agent in the dispatch sequence:
 - Which skill to use (doc-writer, ppt-creator, docx-writer, etc.)
 - Output location (work/runs/<slug>/output/)
 - Strip internal process notes — revision log is not part of the deliverable
+- **Writing style** — the orchestrator must read `.github/resources/writing-style-guide.md` and inline it into the Writer and Synthesizer prompts under a `## Writing Style Guide` section. All prose must follow this style.
 ```
 
 ### Step 5 — Generate the farm README
@@ -475,6 +479,7 @@ After generating a farm, verify:
 - [ ] Instructions mention installing required packages before skill use
 - [ ] **PM checkpoints use `vscode_askQuestions`** — every checkpoint (after collection, synthesis, and critique) uses `vscode_askQuestions` with progress summary and proceed/adjust options — never plain chat text
 - [ ] **Checkpoints are never collapsed** — orchestrator pauses at each checkpoint individually, even if PM approved all previous ones
+- [ ] **Writing style guide injected** — orchestrator reads `.github/resources/writing-style-guide.md` and inlines it into Synthesizer, Reviser, and Writer sub-agent prompts
 
 ## Troubleshooting
 
