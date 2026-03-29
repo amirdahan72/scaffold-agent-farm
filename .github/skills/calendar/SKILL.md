@@ -103,12 +103,45 @@ This skill uses the **microsoft-outlook-calendar MCP** (Microsoft Graph API) to 
 
 ## Time & Timezone Handling
 
-- **Always use ISO 8601 format**: `2026-03-09T09:00:00`
-- **Always specify timezone** via the `timeZone` parameter or ISO 8601 offset (e.g., `+02:00`, `Z`)
-- Call `GetUserDateAndTimeZoneSettings` if timezone is not known
-- Use the same timezone for both start and end times
-- **API responses return UTC times** — even when `timeZone` is set on the request, raw JSON `start.dateTime` / `end.dateTime` values may be UTC. Always add the user's UTC offset before displaying to the user.
-- **`CreateEvent` defaults to PST** if no timezone offset is provided — always include an offset suffix (e.g., `+02:00`) or `Z`
+### Critical: The `timeZone` parameter is broken
+
+The `timeZone` parameter on `CreateEvent`, `UpdateEvent`, and `ListCalendarView` is **silently ignored** by the MCP tool. All bare datetimes (without a UTC offset suffix) are interpreted as **Pacific Standard Time** regardless of what `timeZone` is set to. This was verified by eval tests (see `evals/RESULTS.md` in the personal-admin farm).
+
+### Mandatory rules for all datetime parameters
+
+1. **ALWAYS append `Z` to datetime strings** to force UTC interpretation:
+   ```
+   # ❌ WRONG — silently interpreted as PST, even with timeZone param
+   startDateTime: "2026-04-20T15:00:00"
+   timeZone: "Israel Standard Time"
+
+   # ✅ CORRECT — explicitly UTC, renders as 15:00 IST (UTC+3 in summer)
+   startDateTime: "2026-04-20T12:00:00Z"
+   ```
+
+2. **IST ↔ UTC conversion** (Israel):
+   - **Summer (IDT, late March → late October):** UTC+3 — subtract 3 hours from IST to get UTC
+   - **Winter (IST, late October → late March):** UTC+2 — subtract 2 hours from IST to get UTC
+   - Example: 15:00 IST in summer → `12:00:00Z` · 15:00 IST in winter → `13:00:00Z`
+
+3. **ListCalendarView day boundaries** — query wide, filter locally:
+   The `startDateTime`/`endDateTime` on ListCalendarView also ignore Z-suffix — times default to PST. Since neither `timeZone` param nor Z-suffix produce reliable boundaries:
+   ```
+   # Query for Apr 20 IST — use bare datetimes (they default to PDT/PST)
+   # PDT midnight Apr 20 = 07:00 UTC, which covers the full IST day
+   startDateTime: "2026-04-20T00:00:00"
+   endDateTime: "2026-04-21T00:00:00"
+   # Then POST-FILTER results in agent code:
+   # Keep events where (start.dateTime UTC + 3h) falls on Apr 20 IST
+   ```
+   The API range will be PST-aligned (wider than IST day), so some extra events may appear.
+   **Always post-filter by converting each event's UTC start time to IST before assigning to a day.**
+
+4. **Post-write verification** — after every `CreateEvent` or `UpdateEvent`, check the API response:
+   - `originalStartTimeZone` should be `"UTC"` (not `"Pacific Standard Time"`)
+   - If it says `Pacific Standard Time`, the Z-suffix was missing — delete and retry
+
+5. **Display conversion** — API responses return UTC times. Always add the user's UTC offset before displaying.
 
 ## Known Issues
 
@@ -119,16 +152,21 @@ This skill uses the **microsoft-outlook-calendar MCP** (Microsoft Graph API) to 
 | Large calendar output exceeds context | Always use `select` to limit fields. Use narrow time windows (1-2 days). |
 | Recurring event instances | Always use `ListCalendarView` (not `ListEvents`) to find specific instances. |
 | `UpdateEvent` silently ignores wrong param names | Use `startDateTime` / `endDateTime`, **NOT** `start` / `end`. Wrong names return success but change nothing. Always verify the response times match your intent. |
+| **`timeZone` param ignored on CreateEvent** | The `timeZone` parameter is silently ignored — bare datetimes default to PST. **Always use Z-suffix UTC datetimes.** (Eval: TC-02) |
+| **`timeZone` param ignored on UpdateEvent** | Same bug as CreateEvent — `timeZone` is ignored on updates too. **Always use Z-suffix UTC datetimes.** (Eval: TC-05) |
+| **ListCalendarView boundaries ignore Z-suffix too** | Z-suffix on `startDateTime`/`endDateTime` is also stripped — boundaries default to PST. **Query wide (bare datetimes), then post-filter events by IST in agent code.** (Eval: TC-06, TC-07, Run 2) |
 | `DeclineEvent` fails if you're the organizer | Use `CancelEvent` instead. Only non-organizers can decline. |
 | `DeclineEvent` with `sendResponse: false` and `comment` | Cannot include `comment` when `sendResponse` is `false`. Either send the response with comment, or decline silently without one. |
-| UTC offset boundary confusion | When querying by day in a non-UTC timezone (e.g., IST/UTC+2), events near midnight may appear in the wrong day's results. Always convert event times to user's local timezone before classifying which day they belong to. |
 
 ## Rules
 
 - **ALWAYS** confirm with the user before creating, updating, canceling, or deleting events
 - **ALWAYS** use `ListCalendarView` (not `ListEvents`) for specific recurring event instances
 - **ALWAYS** include a Teams meeting link by default (`isOnlineMeeting: true`)
-- **ALWAYS** resolve timezone before creating events
+- **ALWAYS** use Z-suffix UTC datetimes (`2026-04-20T12:00:00Z`) for CreateEvent and UpdateEvent — never bare datetimes
+- **ALWAYS** pre-convert day boundaries to UTC for ListCalendarView queries
+- **ALWAYS** verify `originalStartTimeZone` is `UTC` in the API response after Create/Update
+- **NEVER** rely on the `timeZone` parameter — it is silently ignored
 - **NEVER** fabricate or guess event IDs — resolve from API responses
 - **NEVER** create, cancel, or delete events without explicit user confirmation
 - Default meeting duration is 30 minutes if not specified
