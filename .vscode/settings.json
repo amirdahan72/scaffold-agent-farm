@@ -1,0 +1,12 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "/^python -c \"import olefile; print\\(olefile\\.isOleFile\\('farms/meeting-summarizer/work/resources/api-security-strategy\\.docx'\\)\\)\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^python -c \"import olefile; print\\(olefile\\.isOleFile\\(r'farms\\\\meeting-summarizer\\\\work\\\\resources\\\\api-security-strategy\\.docx'\\)\\)\" 2>&1$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}

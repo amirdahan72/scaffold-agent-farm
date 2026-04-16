@@ -1,6 +1,28 @@
 ---
 name: scaffold-agent-farm
 description: 'Scaffold a complete multi-agent system for GitHub Copilot. Tell me what you want to build (PRD, competitive brief, roadmap, etc.) and I will create a ready-to-run agent farm with subagents, skills, Work IQ integration, and Azure MCP support.'
+argument-hint: 'Describe the deliverable you want (e.g., PRD for feature X, competitive brief for product Y)'
+model:
+  - 'Claude Sonnet 4.6 (copilot)'
+  - 'Claude Sonnet 4 (copilot)'
+  - 'GPT-4.1 (copilot)'
+tools:
+  - 'runSubagent'
+  - 'vscode_askQuestions'
+  - 'read_file'
+  - 'create_file'
+  - 'list_dir'
+  - 'file_search'
+  - 'grep_search'
+  - 'semantic_search'
+  - 'replace_string_in_file'
+  - 'run_in_terminal'
+  - 'manage_todo_list'
+  - 'Azure MCP Server/*'
+  - 'microsoft-outlook-mail/*'
+  - 'microsoft-outlook-calendar/*'
+  - 'microsoft-sharepoint-and-onedrive/*'
+  - 'microsoft-teams/*'
 ---
 
 ## Who I Am
