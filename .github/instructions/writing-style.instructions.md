@@ -1,6 +1,5 @@
 ---
 description: "Use when writing any document, deliverable, or artifact: PRDs, strategy docs, competitive briefs, meeting summaries, roadmaps, release notes, explainers. Enforces Amir Dahan's writing style across all agent-generated content."
-applyTo: '**'
 ---
 
 # Writing Style — Amir Dahan

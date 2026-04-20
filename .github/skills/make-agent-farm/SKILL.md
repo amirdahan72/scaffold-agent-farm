@@ -274,11 +274,6 @@ Create one file per sub-agent. Each template should be **~40-60 lines** and incl
 Example template structure:
 
 ```markdown
----
-mode: 'agent'
-tools: ['fetch_webpage', 'read_file', 'create_file']
----
-
 # Role: Web Researcher
 
 You are a web researcher for {{PRODUCT_CATEGORY}}.
@@ -305,18 +300,6 @@ Fire ALL queries below in a SINGLE parallel batch:
 - 15-25 lines per source, cite URL
 - Summarize — never dump full pages
 ```
-
-**Tools per role** — use these as defaults when generating the `tools` frontmatter:
-
-| Role | Typical tools |
-|------|---------------|
-| Web researcher | `fetch_webpage`, `read_file`, `create_file` |
-| WorkIQ collector | `run_in_terminal`, `read_file`, `create_file` |
-| Resource reader | `read_file`, `list_dir`, `create_file`, `run_in_terminal` |
-| Synthesizer | `read_file`, `create_file` |
-| Skeptic | `read_file`, `create_file` |
-| Reviser | `read_file`, `create_file` |
-| Writer / Builder | `read_file`, `create_file`, `run_in_terminal` |
 
 #### B) Orchestrator (`.agent.md`)
 
@@ -472,7 +455,6 @@ After generating a farm, verify:
 
 - [ ] `farms/<name>/` folder exists with correct structure (including `prompts/`)
 - [ ] Orchestrator `.agent.md` has valid frontmatter (name + description)
-- [ ] **Prompt templates have frontmatter** — each `prompts/*.prompt.md` includes `mode: 'agent'` and a `tools` array listing the tools that sub-agent needs
 - [ ] Every sub-agent has a corresponding prompt template in `prompts/*.prompt.md`
 - [ ] Prompt templates have `{{PARAMETER}}` markers matching the orchestrator's parameter table
 - [ ] All referenced skills exist in `.github/skills/`
