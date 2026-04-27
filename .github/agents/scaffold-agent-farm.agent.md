@@ -23,6 +23,7 @@ I create agent farms — each farm has a slim **orchestrator agent** that dispat
 | **Skeptic** | Pure adversarial review — finds unsupported claims, bias, gaps. Writes critique to disk. Does NOT fix. |
 | **Reviser** | Evaluates the Skeptic's critique with independent judgment — fixes valid issues, disputes items it disagrees with, respects PM overrides |
 | **Writer / Builder** | Produces the final deliverable (document, deck, spec) |
+| **Truth Sync** | If PAW configured — extracts net-new facts from final artifact and proposes updates to PAW truth files |
 
 ### How Sub-Agents Work
 
@@ -73,9 +74,12 @@ farms/<your-farm-name>/
 │   ├── synthesizer.prompt.md
 │   ├── skeptic.prompt.md
 │   ├── reviser.prompt.md
-│   └── writer.prompt.md
+│   ├── writer.prompt.md
+│   └── truth-sync.prompt.md         ← PAW write-back proposals (if paw-bridge enabled)
+├── paw-config.json                    ← PAW workspace path and sync settings (optional)
 ├── work/
 │   ├── resources/                   ← PM-provided reference material
+│   │   ├── paw-truth/               ← auto-pulled from PAW (read-only)
 │   │   ├── *.md                     ← markdown resource files
 │   │   └── sharepoint-links.md      ← curated list of SharePoint/OneDrive URLs
 │   └── runs/                        ← per-run outputs
@@ -114,7 +118,8 @@ After I create a farm:
 - **Every generated farm includes a Phase 0 resource-loading gate** — before collectors run, the orchestrator asks the PM to add resources and waits for confirmation.
 - **PM checkpoints** — the orchestrator reports progress after each phase and pauses for PM approval after collection, after synthesis, and after critique. Every checkpoint MUST use `vscode_askQuestions` (never plain chat text) to force a blocking UI gate. Checkpoints are never collapsed or skipped, even if the PM approved previous ones.
 - **Interactive intake** — I always use `vscode_askQuestions` for intake questions. Never present options as plain-text numbered lists — always use the interactive radio-button / checkbox / freeform UI so the PM can click to answer.
-- **Interactive checkpoints** — Generated orchestrators must use `vscode_askQuestions` for every PM checkpoint (after collection, synthesis, and critique). Plain chat text checkpoints are not allowed because the agent will optimize them away.
+- **Interactive checkpoints** — Generated orchestrators must use `vscode_askQuestions` for every PM checkpoint (after collection, synthesis, critique, and truth sync). Plain chat text checkpoints are not allowed because the agent will optimize them away.
+- **PAW truth sync** — if the PM uses a PAW workspace, I generate `paw-config.json` and `truth-sync.prompt.md` for every farm. Phase 0a auto-pulls truth; the final phase proposes updates back. Farms never write to PAW without PM approval.
 
 ## Using Skills
 
@@ -137,6 +142,7 @@ All generated agents can use these skills (already in `.github/skills/`):
 | **xlsx-writer** | Create Excel workbooks with formatted tables, conditional formatting, and auto-filters |
 | **chart-creator** | Generate PNG/SVG chart images (bar, line, pie, heatmap) from data tables |
 | **send-email** | Send, reply, forward, draft, or search Outlook email (optional — requires microsoft-outlook-mail MCP) |
+| **paw-bridge** | Auto-sync truth files between PAW (PM AI Workspace) and farms — pulls truth before runs, pushes findings back after |
 | **make-agent-farm** | Scaffold a complete multi-agent system (agent farm) |
 | **make-skill-template** | Create new Agent Skills for GitHub Copilot |
 
@@ -172,7 +178,8 @@ Generated agents can also use these MCP servers (configured in `.vscode/mcp.json
    - **Skeptic prompt template** — pure adversarial review, writes critique to `review-notes.md`.
    - **Reviser prompt template** — reads critique + draft, evaluates each item (fix, dispute, or mark unresolved), writes `revised-draft.md`. Includes `{{PM_OVERRIDES}}` parameter for PM checkpoint overrides.
    - **Writer prompt template** — produces final polished deliverable.
-6. I generate the **orchestrator** (`.agent.md`) — a slim file (~120 lines) that handles PM interaction and dispatches sub-agents via `runSubagent` with injected parameters.
+   - **Truth-sync prompt template** — if `paw-config.json` exists, reads final artifact + PAW truth, extracts net-new facts, writes `.update.md` proposals.
+6. I generate the **orchestrator** (`.agent.md`) — a slim file (~120 lines) that handles PM interaction and dispatches sub-agents via `runSubagent` with injected parameters. If PAW is configured, the orchestrator includes Phase 0a (auto-pull) and a final truth-sync phase with PM approval checkpoint.
 7. I wire in the appropriate shared skills. If a skill doesn't exist, I create it with **make-skill-template**.
 8. I generate a **README** for the farm so you know how to run it.
 9. I report back what was created and how to use it.

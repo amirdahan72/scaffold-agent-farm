@@ -44,8 +44,9 @@ Sub-agents communicate via **disk files** — each writes to a known path, the n
 | **Skeptic** | Pure adversarial review — finds unsupported claims, bias, gaps, outdated data. Writes critique to `review-notes.md`. Does **NOT** fix anything. |
 | **Reviser** | Evaluates the Skeptic's critique with independent judgment. Fixes valid issues, disputes items it disagrees with (explaining why), and respects any PM overrides from the post-critique checkpoint. Writes `revised-draft.md` with a revision log including Fixed, Unresolved, and Disputed categories. |
 | **Builder / Writer** | Produces the final deliverable (PRD, deck, spec, etc.) |
+| **Truth Sync** | If `paw-config.json` exists — extracts net-new facts from final artifact and proposes updates to PAW truth files. Does **NOT** write to PAW directly. |
 
-**Execution order:** Phase 0 (Resource Loading) → Collectors → Synthesizer → Skeptic → Reviser → Writer.
+**Execution order:** Phase 0 (Resource Loading) → Collectors → Synthesizer → Skeptic → Reviser → Writer → Truth Sync (if PAW configured).
 
 - `runSubagent` is **sequential/blocking** — sub-agents run one after another.
 - However, each sub-agent can fire **parallel tool calls internally** (e.g., multiple `fetch_webpage` calls at once).
@@ -107,6 +108,7 @@ If the PM provides override text, the orchestrator must inject it into the Revis
 | Collection (1a-1c) | PM reviews what was gathered before synthesis |
 | Synthesis (2) | PM reviews the draft before critique |
 | Critique (3) | PM reviews the critique, can mark items as "skip" or "override" before revision |
+| Truth Sync (final) | PM reviews proposed PAW updates before write-back (only if `paw-config.json` exists) |
 
 The orchestrator's Rules section must include:
 ```markdown
@@ -161,6 +163,7 @@ Generated agent farms can reference these shared skills (already in `.github/ski
 | `chart-creator` | Agent needs to produce chart images (bar, line, pie, heatmap) for visual data |
 | `send-email` | Agent needs to email deliverables to stakeholders or notify recipients (requires microsoft-outlook-mail MCP) |
 | `make-skill-template` | Agent farm needs a custom skill that doesn't exist yet |
+| `paw-bridge` | PM uses a PAW workspace — auto-pull truth files before run, propose updates back after |
 
 ### Available MCP Servers
 
@@ -238,9 +241,12 @@ farms/<farm-name>/
 │   ├── synthesizer.prompt.md
 │   ├── skeptic.prompt.md
 │   ├── reviser.prompt.md
-│   └── writer.prompt.md
+│   ├── writer.prompt.md
+│   └── truth-sync.prompt.md         # PAW write-back proposals (if paw-bridge enabled)
+├── paw-config.json                    # PAW workspace path and sync settings (optional)
 ├── work/
 │   ├── resources/                   # PM-provided reference material (shared across runs)
+│   │   ├── paw-truth/               # Auto-pulled from PAW (read-only)
 │   │   ├── *.md                     # Markdown resource files (copied from PM)
 │   │   └── sharepoint-links.md      # Curated list of SharePoint/OneDrive URLs
 │   └── runs/                        # Each run gets its own subfolder
@@ -360,11 +366,13 @@ with values from the table above, and call `runSubagent`.
 | 3 | `prompts/skeptic.prompt.md` | Adversarial review |
 | 4 | `prompts/reviser.prompt.md` | Evaluate and address critique issues |
 | 5 | `prompts/writer.prompt.md` | Final deliverable |
+| 6 | `prompts/truth-sync.prompt.md` | PAW truth write-back proposals (if `paw-config.json` exists) |
 
 **PM checkpoints (MANDATORY — use `vscode_askQuestions`):**
-After collection (1a-1c), after synthesis (2), and after critique (3), call
-`vscode_askQuestions` with a progress summary and proceed/adjust options.
-Never use plain chat text for checkpoints. Never collapse or skip checkpoints.
+After collection (1a-1c), after synthesis (2), after critique (3), and after
+truth sync (6, if PAW configured), call `vscode_askQuestions` with a progress
+summary and proceed/adjust options. Never use plain chat text for checkpoints.
+Never collapse or skip checkpoints.
 ```
 
 The orchestrator must include:
@@ -385,6 +393,13 @@ At the start of every run, before Phase 0:
 ```markdown
 > ⚠️ MANDATORY — The orchestrator does NOT proceed to collectors until the PM explicitly approves.
 
+Phase 0a — PAW Truth Pull (Automatic):
+Before the resource gate, check for `paw-config.json` in the farm root.
+- If found: use the `paw-bridge` skill to auto-pull truth files from PAW into
+  `work/resources/paw-truth/`. Report counts to the PM.
+- If not found: optionally ask the PM if they use a PAW workspace. Skip if no.
+
+Phase 0b — Resource Gate (PM-driven):
 Before dispatching any collector sub-agent:
 1. Use `vscode_askQuestions` to ask the PM about reference files (radio buttons: "I have files to add",
    "No resources — proceed", plus a freeform field for notes). Tell the PM: "You can drag-and-drop files
@@ -435,6 +450,13 @@ For each sub-agent in the dispatch sequence:
 - Output location (work/runs/<slug>/output/)
 - Strip internal process notes — revision log is not part of the deliverable
 - **Writing style** — the orchestrator must read `.github/resources/writing-style-guide.md` and inline it into the Writer and Synthesizer prompts under a `## Writing Style Guide` section. All prose must follow this style.
+
+**Truth Sync (Phase 6 — if `paw-config.json` exists):**
+- Reads the final artifact and current PAW truth from `work/resources/paw-truth/`
+- Extracts net-new facts (decisions, risks, lessons) not already in PAW
+- Writes structured `.update.md` proposals to `work/runs/<slug>/output/paw-updates/`
+- Does NOT write to PAW directly — the orchestrator reads the proposals and asks the PM for approval via `vscode_askQuestions`
+- If PM approves, orchestrator applies updates to PAW truth files at `paw_root`
 ```
 
 ### Step 5 — Generate the farm README
@@ -468,6 +490,8 @@ After generating a farm, verify:
 - [ ] If PM provided SharePoint/OneDrive links, they are listed in `work/resources/sharepoint-links.md`
 - [ ] If `work/resources/sharepoint-links.md` exists, collector instructions explicitly invoke `sharepoint-reader` before synthesis
 - [ ] **Phase 0 resource-loading gate is included** — orchestrator asks PM to add resources and waits for approval before dispatching collectors
+- [ ] **PAW integration** — if PM uses PAW: `paw-config.json` exists, `truth-sync.prompt.md` exists, orchestrator has Phase 0a (PAW pull) and final truth-sync phase with PM approval checkpoint
+- [ ] **PAW truth is read-only** — `work/resources/paw-truth/` is never modified by sub-agents; write-backs go through `.update.md` proposals only
 - [ ] **Run versioning is included** — orchestrator creates `work/runs/YYYY-MM-DD-<slug>/` at the start; previous runs are preserved
 - [ ] Collector instructions include reading `work/resources/` before external research
 - [ ] Collector instructions include converting non-Markdown resource files with `markitdown` before summarizing
