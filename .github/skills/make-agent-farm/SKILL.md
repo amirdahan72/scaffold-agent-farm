@@ -162,6 +162,7 @@ Generated agent farms can reference these shared skills (already in `.github/ski
 | `xlsx-writer` | Agent needs to produce Excel workbooks (matrices, scorecards, trackers) |
 | `chart-creator` | Agent needs to produce chart images (bar, line, pie, heatmap) for visual data |
 | `send-email` | Agent needs to email deliverables to stakeholders or notify recipients (requires microsoft-outlook-mail MCP) |
+| `adaptive-cards` | Agent produces concise, structured artifacts (summaries, action items, digests, release highlights, battle cards) that benefit from card-based consumption in Teams/Outlook (requires adaptive-cards-mcp) |
 | `make-skill-template` | Agent farm needs a custom skill that doesn't exist yet |
 | `paw-bridge` | PM uses a PAW workspace — auto-pull truth files before run, propose updates back after |
 
@@ -173,6 +174,7 @@ Generated agent farms can also use MCP servers:
 |--------|----------------|----------------|
 | **Azure MCP Server** | `.vscode/mcp.json` (workspace) | Agent needs to query Azure resources (resource groups, storage, app services, etc.) |
 | **microsoft-outlook-mail** | `~/.copilot/mcp-config.json` (user-level) | Agent needs to send, reply, forward, or search Outlook email (optional — requires MCP authentication) |
+| **adaptive-cards-mcp** | `%APPDATA%/Code/User/mcp.json` (user-level) | Agent needs to generate, validate, or optimize Adaptive Card JSON for Teams, Outlook, or Copilot surfaces |
 
 ### Work IQ CLI
 
@@ -446,10 +448,11 @@ For each sub-agent in the dispatch sequence:
 
 **Writer (Phase 5):**
 - Reads `work/runs/<slug>/output/revised-draft.md` (the Reviser's output, NOT the raw combined draft)
-- Which skill to use (doc-writer, ppt-creator, docx-writer, etc.)
+- Which skill to use (doc-writer, ppt-creator, docx-writer, adaptive-cards, etc.)
 - Output location (work/runs/<slug>/output/)
 - Strip internal process notes — revision log is not part of the deliverable
 - **Writing style** — the orchestrator must read `.github/resources/writing-style-guide.md` and inline it into the Writer and Synthesizer prompts under a `## Writing Style Guide` section. All prose must follow this style.
+- **Adaptive Card output (optional)** — if the artifact is concise and action-oriented (summaries, action items, digests, release highlights, battle cards), and the PM requested card output or `{{OPTIONAL_FORMATS}}` includes "adaptive-card", use the `adaptive-cards` skill to produce a companion `.adaptive-card.json` file alongside the markdown. Do NOT generate cards for long-form documents (strategy papers, full PRDs, onboarding guides).
 
 **Truth Sync (Phase 6 — if `paw-config.json` exists):**
 - Reads the final artifact and current PAW truth from `work/resources/paw-truth/`
