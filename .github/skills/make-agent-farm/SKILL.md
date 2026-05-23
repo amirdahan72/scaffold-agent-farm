@@ -40,13 +40,14 @@ Sub-agents communicate via **disk files** — each writes to a known path, the n
 |------|-------------|
 | **Phase 0 — Resource Loading** | **Orchestrator pauses and asks the PM to add reference files (markdown, SharePoint/OneDrive links) to `work/resources/`, then waits for approval before proceeding.** |
 | **Collector(s)** | Gathers raw information (web search, Work IQ, Azure resources) and writes summaries to disk — reads PM resources first. Each collector is a separate sub-agent. |
+| **PAW Reader** | If `paw-config.json` exists — reads scoped PAW folders (products / people / workstreams / lessons, per archetype) directly from `paw_root` and writes a single summary `sources/paw-context.md`. Replaces the old Phase 0a bulk pull. Enforces a privacy deny-list (never reads `personal/{1-1-notes,feedback,dailies,connect,pro-d}/`). |
 | **Synthesizer** | Reads all summaries, combines them into a structured document |
 | **Skeptic** | Pure adversarial review — finds unsupported claims, bias, gaps, outdated data. Writes critique to `review-notes.md`. Does **NOT** fix anything. |
 | **Reviser** | Evaluates the Skeptic's critique with independent judgment. Fixes valid issues, disputes items it disagrees with (explaining why), and respects any PM overrides from the post-critique checkpoint. Writes `revised-draft.md` with a revision log including Fixed, Unresolved, and Disputed categories. |
 | **Builder / Writer** | Produces the final deliverable (PRD, deck, spec, etc.) |
 | **Truth Sync** | If `paw-config.json` exists — extracts net-new facts from final artifact and proposes updates to PAW truth files. Does **NOT** write to PAW directly. |
 
-**Execution order:** Phase 0 (Resource Loading) → Collectors → Synthesizer → Skeptic → Reviser → Writer → Truth Sync (if PAW configured).
+**Execution order:** Phase 0 (Resource Loading) → Collectors (including PAW Reader if configured) → Synthesizer → Skeptic → Reviser → Writer → Truth Sync (if PAW configured).
 
 - `runSubagent` is **sequential/blocking** — sub-agents run one after another.
 - However, each sub-agent can fire **parallel tool calls internally** (e.g., multiple `fetch_webpage` calls at once).
@@ -164,7 +165,7 @@ Generated agent farms can reference these shared skills (already in `.github/ski
 | `send-email` | Agent needs to email deliverables to stakeholders or notify recipients (requires microsoft-outlook-mail MCP) |
 | `adaptive-cards` | Agent produces concise, structured artifacts (summaries, action items, digests, release highlights, battle cards) that benefit from card-based consumption in Teams/Outlook (requires adaptive-cards-mcp) |
 | `make-skill-template` | Agent farm needs a custom skill that doesn't exist yet |
-| `paw-bridge` | PM uses a PAW workspace — auto-pull truth files before run, propose updates back after |
+| `paw-bridge` | **Push-only / truth-sync.** PM uses a PAW workspace and the farm should propose net-new facts back to PAW after the run. Pull-from-PAW is NOT this skill — it's the per-farm `paw-reader.prompt.md` collector (see PAW Reader Template below). |
 
 ### Available MCP Servers
 
@@ -240,15 +241,15 @@ farms/<farm-name>/
 │   ├── <collector-1>.prompt.md      # e.g., web-researcher
 │   ├── <collector-2>.prompt.md      # e.g., workiq-collector
 │   ├── <collector-3>.prompt.md      # e.g., resource-reader
+│   ├── paw-reader.prompt.md         # PAW context collector (if paw-config.json exists)
 │   ├── synthesizer.prompt.md
 │   ├── skeptic.prompt.md
 │   ├── reviser.prompt.md
 │   ├── writer.prompt.md
-│   └── truth-sync.prompt.md         # PAW write-back proposals (if paw-bridge enabled)
+│   └── truth-sync.prompt.md         # PAW write-back proposals (if paw-config.json exists)
 ├── paw-config.json                    # PAW workspace path and sync settings (optional)
 ├── work/
 │   ├── resources/                   # PM-provided reference material (shared across runs)
-│   │   ├── paw-truth/               # Auto-pulled from PAW (read-only)
 │   │   ├── *.md                     # Markdown resource files (copied from PM)
 │   │   └── sharepoint-links.md      # Curated list of SharePoint/OneDrive URLs
 │   └── runs/                        # Each run gets its own subfolder
@@ -364,6 +365,7 @@ with values from the table above, and call `runSubagent`.
 | 1a | `prompts/web-researcher.prompt.md` | Web research collection |
 | 1b | `prompts/workiq-collector.prompt.md` | Internal M365 context |
 | 1c | `prompts/resource-reader.prompt.md` | PM-provided resources |
+| 1d | `prompts/paw-reader.prompt.md` | PAW context (only if `paw-config.json` exists) |
 | 2 | `prompts/synthesizer.prompt.md` | Combine into draft |
 | 3 | `prompts/skeptic.prompt.md` | Adversarial review |
 | 4 | `prompts/reviser.prompt.md` | Evaluate and address critique issues |
@@ -395,13 +397,7 @@ At the start of every run, before Phase 0:
 ```markdown
 > ⚠️ MANDATORY — The orchestrator does NOT proceed to collectors until the PM explicitly approves.
 
-Phase 0a — PAW Truth Pull (Automatic):
-Before the resource gate, check for `paw-config.json` in the farm root.
-- If found: use the `paw-bridge` skill to auto-pull truth files from PAW into
-  `work/resources/paw-truth/`. Report counts to the PM.
-- If not found: optionally ask the PM if they use a PAW workspace. Skip if no.
-
-Phase 0b — Resource Gate (PM-driven):
+Phase 0 — Resource Gate (PM-driven):
 Before dispatching any collector sub-agent:
 1. Use `vscode_askQuestions` to ask the PM about reference files (radio buttons: "I have files to add",
    "No resources — proceed", plus a freeform field for notes). Tell the PM: "You can drag-and-drop files
@@ -411,8 +407,11 @@ Before dispatching any collector sub-agent:
    first, but if it fails with 401/403, ask the PM to download the files via their browser instead.
    If not: acknowledge and proceed.
 3. Use `vscode_askQuestions` again to confirm: "Resources are loaded (or skipped). Ready to start?"
-   (radio buttons: "Start collection", "Wait — I need to add more").
+   (radio buttons: ["Start collection", "Wait — I need to add more"]).
 4. Do NOT proceed until the PM clicks a button.
+
+> Note: PAW pull is no longer a Phase 0 step. If `paw-config.json` exists, the orchestrator dispatches
+> a `paw-reader` sub-agent during the collection phase — same as web-researcher / workiq-collector.
 ```
 
 ##### Sub-Agent Phase Instructions
@@ -455,7 +454,7 @@ For each sub-agent in the dispatch sequence:
 - **Adaptive Card output (optional)** — if the artifact is concise and action-oriented (summaries, action items, digests, release highlights, battle cards), and the PM requested card output or `{{OPTIONAL_FORMATS}}` includes "adaptive-card", use the `adaptive-cards` skill to produce a companion `.adaptive-card.json` file alongside the markdown. Do NOT generate cards for long-form documents (strategy papers, full PRDs, onboarding guides).
 
 **Truth Sync (Phase 6 — if `paw-config.json` exists):**
-- Reads the final artifact and current PAW truth from `work/resources/paw-truth/`
+- Reads the final artifact and re-reads PAW truth directly from `paw_root` (not from a `paw-truth/` cache — that pattern is deprecated)
 - Extracts net-new facts (decisions, risks, lessons) not already in PAW
 - Writes structured `.update.md` proposals to `work/runs/<slug>/output/paw-updates/`
 - Does NOT write to PAW directly — the orchestrator reads the proposals and asks the PM for approval via `vscode_askQuestions`
@@ -473,6 +472,138 @@ Create a short README.md in the farm folder explaining:
 ### Step 6 — Scaffold any custom skills needed
 
 If the farm needs a capability not covered by the shared skills, use the `make-skill-template` skill to create a new skill in `.github/skills/`.
+
+## PAW Reader Template
+
+When the farm should read context from the PM's PAW (PM AI Workspace), the scaffolder creates a `prompts/paw-reader.prompt.md` sub-agent. This replaces the deprecated "Phase 0a bulk pull" pattern.
+
+### Farm Archetype Matrix
+
+Use this matrix to decide which PAW folders the `paw-reader` should consult for a new farm. If multiple apply, include all relevant folders in the prompt's "Read these folders" list.
+
+| Farm archetype | products/ | people/ | workstreams/ | personal/lessons.md |
+|----------------|-----------|---------|--------------|---------------------|
+| Competitive analysis / market brief | ✅ scoped to topic | ⚪ optional | ⚪ optional | ⚪ optional |
+| Blog / marketing review | ✅ | ⚪ | ⚪ | ✅ (writing style) |
+| Business plan / strategy doc | ✅ | ⚪ | ✅ | ⚪ |
+| North-star / roadmap | ✅ | ⚪ | ✅ | ✅ |
+| PRD / spec | ✅ | ⚪ | ✅ scoped | ✅ |
+| Connect / manager comments / calibration | ✅ | ✅ scoped to target | ⚪ | ✅ |
+| Personal admin / weekly plan | ⚪ | ✅ team | ✅ all active | ✅ |
+| Synthetic user research | ✅ | ⚪ | ⚪ | ⚪ |
+| Onboarding / agent kit | ⚪ | ✅ | ⚪ | ✅ |
+| Release notes / meeting summary | ✅ | ⚪ | ✅ scoped | ⚪ |
+
+✅ = include by default · ⚪ = include only if PM input mentions stakeholders/workstreams · skip everything else.
+
+### Privacy Boundary (HARD DENY — bake into every paw-reader prompt)
+
+Never read from these PAW paths under any circumstance:
+- `personal/1-1-notes/`
+- `personal/feedback/`
+- `personal/dailies/`
+- `personal/connect/`
+- `personal/pro-d/`
+
+These are diary-grade; they must not appear in farm context, summaries, or artifacts.
+
+### Canonical Template
+
+Copy this into `farms/<farm-name>/prompts/paw-reader.prompt.md` and customize the "Scope" block per the archetype matrix.
+
+```markdown
+# Role: PAW Context Reader
+
+You are a context reader for the {{FARM_NAME}} farm. You read scoped folders from the PM's PAW (PM AI Workspace) and write a single concise summary that downstream sub-agents can consume.
+
+## Inputs
+
+- PAW config: `{{FARM_ROOT}}/paw-config.json` (read `paw_root` from it)
+- Topic / parameters: {{TOPIC}}, {{TARGET_PERSON}} (if applicable), {{WORKSTREAM_FILTER}} (if applicable)
+
+## Scope (customize per farm archetype)
+
+Read ONLY these folders under `{paw_root}`:
+- `products/` — match files whose name contains a slug from {{TOPIC}} (e.g., topic "Azure WAF API protection" → `azure-waf.md`). Skip `_template-*.md`.
+- `people/` — only `@{{TARGET_PERSON}}.md` and any aliases mentioned in {{TOPIC}}. Skip `_template-*.md`.
+- `workstreams/<slug>/` — match folders whose name overlaps {{TOPIC}} or {{WORKSTREAM_FILTER}}. Read `README.md` plus `*.md` files modified in the last 30 days. Skip `_template-workstream.md` and `_system/`.
+- `personal/lessons.md` — read in full.
+
+## Privacy boundary (HARD DENY — never read these)
+
+- `personal/1-1-notes/`
+- `personal/feedback/`
+- `personal/dailies/`
+- `personal/connect/`
+- `personal/pro-d/`
+
+If you accidentally open one of these, stop, do not include it in the output, and note the attempted read at the bottom of your summary as "Attempted-but-skipped (privacy boundary): <path>".
+
+## Steps
+
+1. Read `paw-config.json` to get `paw_root`. If missing or `paw_root` is invalid, write a one-line summary "PAW not configured — skipping" and exit.
+2. Resolve scope. Build the list of files you will read based on the Scope block. Cap at ~12 files total — if more match, prefer the most recently modified.
+3. Read each file. Extract only the sections relevant to {{TOPIC}}: Recent Decisions, Risks, Open Questions, key stakeholder quotes, ownership rows. Skip stale or off-topic content.
+4. If any file is not `.md`, convert with `markitdown` first.
+
+## Output
+
+Write to: `{{RUN_PATH}}/sources/paw-context.md`
+
+Structure:
+
+\`\`\`
+# PAW Context for {{FARM_NAME}} run {{RUN_SLUG}}
+
+> Source: PAW workspace at {paw_root}
+> Files read: <count>
+
+## Product truth
+### <product slug> (from products/<file>.md)
+- Owners: ...
+- Recent decisions: ...
+- Risks / open questions: ...
+
+## Stakeholder summary
+### @<alias> (from people/@<alias>.md)
+- Role / owns: ...
+- Working style notes relevant to this farm: ...
+- (Never include 1:1 transcript quotes, feedback notes, or career goals unless explicitly in scope.)
+
+## Workstreams
+### <slug> (from workstreams/<slug>/)
+- Status snapshot: ...
+- Recent meeting notes (30d): ...
+
+## Lessons applicable to this farm
+- (rule) — (one-line context)
+
+## Files read
+- products/<file>.md
+- people/@<alias>.md
+- ...
+
+## Attempted-but-skipped (privacy boundary)
+- (none) | <path that was incorrectly opened>
+\`\`\`
+
+## Quality
+
+- Summarize, don't copy. Target ~30–80 lines per source file, not the full content.
+- Cite the original PAW path next to every section heading so downstream sub-agents can resolve back.
+- If a folder in scope has no matching files, write "(no matches)" — do not invent content.
+- If `paw-config.json` is missing, write a single-line summary and exit cleanly. Never fabricate PAW content.
+```
+
+### Orchestrator Wiring
+
+In the generated orchestrator (`<farm-name>.agent.md`):
+
+1. Add `paw-reader` to the dispatch table as Phase 1d (or whichever number follows existing collectors).
+2. Wrap the dispatch in a check: `If paw-config.json exists in farm root, dispatch paw-reader; else skip.`
+3. The paw-reader runs **alongside** other collectors (web-researcher, workiq-collector, resource-reader). All collector outputs feed into the same Synthesizer.
+4. Pass `{{TOPIC}}`, `{{TARGET_PERSON}}`, `{{WORKSTREAM_FILTER}}` parameters as available from the PM input.
+5. Do NOT include any pre-Phase-0 PAW pull. Do NOT create a `work/resources/paw-truth/` folder.
 
 ## Validation Checklist
 
@@ -493,8 +624,9 @@ After generating a farm, verify:
 - [ ] If PM provided SharePoint/OneDrive links, they are listed in `work/resources/sharepoint-links.md`
 - [ ] If `work/resources/sharepoint-links.md` exists, collector instructions explicitly invoke `sharepoint-reader` before synthesis
 - [ ] **Phase 0 resource-loading gate is included** — orchestrator asks PM to add resources and waits for approval before dispatching collectors
-- [ ] **PAW integration** — if PM uses PAW: `paw-config.json` exists, `truth-sync.prompt.md` exists, orchestrator has Phase 0a (PAW pull) and final truth-sync phase with PM approval checkpoint
-- [ ] **PAW truth is read-only** — `work/resources/paw-truth/` is never modified by sub-agents; write-backs go through `.update.md` proposals only
+- [ ] **PAW integration** — if PM uses PAW: `paw-config.json` exists, `paw-reader.prompt.md` exists in `prompts/`, `truth-sync.prompt.md` exists, orchestrator dispatches `paw-reader` during collection phase and `truth-sync` as final phase with PM approval checkpoint
+- [ ] **PAW privacy boundary** — `paw-reader` prompt explicitly excludes `personal/{1-1-notes,feedback,dailies,connect,pro-d}/`; full people cards are summarized, not copied
+- [ ] **No deprecated Phase 0a bulk pull** — orchestrator does NOT call `paw-bridge` to populate `work/resources/paw-truth/`; that pattern is replaced by the `paw-reader` sub-agent
 - [ ] **Run versioning is included** — orchestrator creates `work/runs/YYYY-MM-DD-<slug>/` at the start; previous runs are preserved
 - [ ] Collector instructions include reading `work/resources/` before external research
 - [ ] Collector instructions include converting non-Markdown resource files with `markitdown` before summarizing
