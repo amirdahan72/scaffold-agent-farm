@@ -127,4 +127,4 @@ Each subagent writes to disk. The next subagent reads from disk. This keeps cont
 | Azure MCP not available | Install the extension: search "Azure MCP Server" in VS Code extensions. Run `az login` for auth. |
 | "Context too large" errors | Ensure collectors summarize (not dump) web content. Check skill instructions say "10-20 lines per source". |
 
-## Contributing PM Team: Eliran Azulai
+## NetSec Contributing PM Team: Eliran Azulai
